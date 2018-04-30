@@ -1,3 +1,19 @@
+# Go-specific
+bin/**
+pkg/**
+
+# vim
+.*.swp
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
 # Binaries for programs and plugins
 *.exe
 *.dll
