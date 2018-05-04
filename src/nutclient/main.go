@@ -61,6 +61,7 @@ func main() {
 		status, err := getUpsStatus(server, upsName)
 		if err != nil {
 			log.Println("Could not get UPS status:", err)
+			healthyCount = healthyMessageIterations
 		} else {
 			if strings.HasPrefix(status, "OB") {
 				disconnectClient()
