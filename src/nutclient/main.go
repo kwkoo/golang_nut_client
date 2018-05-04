@@ -135,12 +135,8 @@ func getUpsStatus(server, upsName string) (string, error) {
 			return status, nil
 		}
 
-		if isEOF(err) {
-			return "", err
-		}
-
 		disconnectClient()
-		log.Fatalf("Could not retrieve ups.status variable from UPS %s: %v", upsName, err)
+		return "", fmt.Errorf("could not retrieve ups.status variable from UPS %s: %v", upsName, err)
 	}
 
 	// the user has not specified a ups name, so we'll get everything
