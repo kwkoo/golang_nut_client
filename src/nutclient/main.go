@@ -4,16 +4,20 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	nut "github.com/robbiet480/go.nut"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
+
+	nut "github.com/robbiet480/go.nut"
 )
 
 var client nut.Client
 var connectClient = true
-
+var logFilename = ""
+var logFile *os.File
 
 func main() {
 	var server string
@@ -25,6 +29,7 @@ func main() {
 	flag.StringVar(&command, "shutdowncmd", "/sbin/poweroff", "command to execute once the UPS is determined to be on battery power")
 	flag.IntVar(&sleep, "pollfreq", 10, "number of seconds between status checks - note that the NUT server will terminate connections after 60 seconds")
 	flag.IntVar(&healthyMessageIterations, "healthiterations", healthyMessageIterations, "the rate at which healthy messages are logged - if this is set to 100 then a healthy message will be logged once every 100 iterations")
+	flag.StringVar(&logFilename, "log", logFilename, "log filename - logs to stdout if omitted")
 	flag.Parse()
 
 	upsName, server := extractUpsNameFromMonitorOption(server)
@@ -41,6 +46,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	if len(logFilename) > 0 {
+		var err error
+		logFile, err = os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			flag.PrintDefaults()
+			fmt.Fprintf(os.Stderr, "Could not open log file %s: %v\n", logFilename, err)
+			os.Exit(1)
+		}
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	}
+
+	sig := make(chan os.Signal)
+	signal.Notify(sig, syscall.SIGHUP)
+
 	log.Println("NUT server:", server)
 
 	tmpName := upsName
@@ -52,7 +72,11 @@ func main() {
 	log.Println("Polling frequency:", sleep, "seconds")
 	log.Println("Health iterations:", healthyMessageIterations, "iterations")
 	log.Println("Shutdown command:", command)
-
+	if len(logFilename) > 0 {
+		log.Println("Log file:", logFilename)
+	} else {
+		log.Println("Logging to stdout")
+	}
 
 	// log a healthy message the first time around
 	healthyCount := healthyMessageIterations
@@ -85,8 +109,34 @@ func main() {
 			}
 		}
 
-		time.Sleep(time.Second * time.Duration(sleep))
+		select {
+		case <-sig:
+			log.Println("SIGHUP received")
+			healthyCount = healthyMessageIterations
+			reopenLogFile()
+		case <-time.After(time.Second * time.Duration(sleep)):
+
+		}
 	}
+}
+
+func reopenLogFile() {
+	if logFile == nil {
+		return
+	}
+
+	log.Println("Closing log file...")
+	logFile.Close()
+
+	logFile, err := os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logFile = nil
+		log.SetOutput(os.Stdout)
+		log.Printf("Could not reopen log file %s: %v", logFilename, err)
+		return
+	}
+	log.SetOutput(logFile)
+	log.Println("Successfully reopened log file", logFilename)
 }
 
 func extractUpsNameFromMonitorOption(server string) (string, string) {

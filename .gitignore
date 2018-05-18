@@ -28,3 +28,9 @@ Thumbs.db
 
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
+
+# Visual Studio Code
+src/github.com/**
+src/golang.org/x/**
+
+!src/github.com/robbiet480/**
