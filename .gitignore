@@ -30,7 +30,14 @@ Thumbs.db
 .glide/
 
 # Visual Studio Code
-src/github.com/**
 src/golang.org/x/**
-
-!src/github.com/robbiet480/**
+src/github.com/acroca
+src/github.com/golang/lint
+src/github.com/karrick
+src/github.com/mdempsky
+src/github.com/pkg
+src/github.com/ramya-rao-a
+src/github.com/rogpeppe
+src/github.com/sqs
+src/github.com/uudashr
+src/github.com/derekparker
