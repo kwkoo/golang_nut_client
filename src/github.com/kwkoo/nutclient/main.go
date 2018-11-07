@@ -11,28 +11,28 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kwkoo/argparser"
 	nut "github.com/robbiet480/go.nut"
 )
 
 var client nut.Client
 var connectClient = true
-var logFilename = ""
 var logFile *os.File
+var config = struct {
+	Server                   string `env:"MONITOR" flag:"monitor" usage:"should be in the format ups@system or just system (where system is the hostname or IP address of the NUT server) - if the UPS name is omitted the client will query for all UPS's and will use the first UPS returned, which is more inefficient" mandatory:"true"`
+	Command                  string `env:"SHUTDOWNCMD" flag:"shutdowncmd" default:"/sbin/poweroff" usage:"command to execute once the UPS is determined to be on battery power"`
+	Sleep                    int    `env:"POLLFREQ" flag:"pollfreq" default:"10" usage:"number of seconds between status checks - note that the NUT server will terminate connections after 60 seconds"`
+	HealthyMessageIterations int    `env:"HEALTHITERATIONS" flag:"healthiterations" default:"360" usage:"the rate at which healthy messages are logged - if this is set to 100 then a healthy message will be logged once every 100 iterations"`
+	LogFilename              string `env:"LOG" flag:"log" usage:"log filename - logs to stdout if omitted"`
+}{}
 
 func main() {
-	var server string
-	var command string
-	var sleep int
-	var healthyMessageIterations = 360
+	if err := argparser.Parse(&config); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
+		os.Exit(1)
+	}
 
-	flag.StringVar(&server, "monitor", "", "should be in the format ups@system or just system (where system is the hostname or IP address of the NUT server) - if the UPS name is omitted the client will query for all UPS's and will use the first UPS returned, which is more inefficient")
-	flag.StringVar(&command, "shutdowncmd", "/sbin/poweroff", "command to execute once the UPS is determined to be on battery power")
-	flag.IntVar(&sleep, "pollfreq", 10, "number of seconds between status checks - note that the NUT server will terminate connections after 60 seconds")
-	flag.IntVar(&healthyMessageIterations, "healthiterations", healthyMessageIterations, "the rate at which healthy messages are logged - if this is set to 100 then a healthy message will be logged once every 100 iterations")
-	flag.StringVar(&logFilename, "log", logFilename, "log filename - logs to stdout if omitted")
-	flag.Parse()
-
-	upsName, server := extractUpsNameFromMonitorOption(server)
+	upsName, server := extractUpsNameFromMonitorOption(config.Server)
 
 	if len(server) == 0 {
 		flag.PrintDefaults()
@@ -40,18 +40,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(command) == 0 {
-		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, "Mandatory parameter -shutdowncmd is missing.")
-		os.Exit(1)
-	}
-
-	if len(logFilename) > 0 {
+	if len(config.LogFilename) > 0 {
 		var err error
-		logFile, err = os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		logFile, err = os.OpenFile(config.LogFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			flag.PrintDefaults()
-			fmt.Fprintf(os.Stderr, "Could not open log file %s: %v\n", logFilename, err)
+			fmt.Fprintf(os.Stderr, "Could not open log file %s: %v\n", config.LogFilename, err)
 			os.Exit(1)
 		}
 		defer logFile.Close()
@@ -69,28 +63,28 @@ func main() {
 	}
 	log.Println("UPS name:", tmpName)
 
-	log.Println("Polling frequency:", sleep, "seconds")
-	log.Println("Health iterations:", healthyMessageIterations, "iterations")
-	log.Println("Shutdown command:", command)
-	if len(logFilename) > 0 {
-		log.Println("Log file:", logFilename)
+	log.Println("Polling frequency:", config.Sleep, "seconds")
+	log.Println("Health iterations:", config.HealthyMessageIterations, "iterations")
+	log.Println("Shutdown command:", config.Command)
+	if len(config.LogFilename) > 0 {
+		log.Println("Log file:", config.LogFilename)
 	} else {
 		log.Println("Logging to stdout")
 	}
 
 	// log a healthy message the first time around
-	healthyCount := healthyMessageIterations
+	healthyCount := config.HealthyMessageIterations
 
 	for {
 		status, err := getUpsStatus(server, upsName)
 		if err != nil {
 			log.Println("Could not get UPS status:", err)
-			healthyCount = healthyMessageIterations
+			healthyCount = config.HealthyMessageIterations
 		} else {
 			if strings.HasPrefix(status, "OB") {
 				disconnectClient()
-				log.Printf("Detected unhealthy UPS status %s, initiating command %s\n", status, command)
-				cmdSlice := strings.Split(command, " ")
+				log.Printf("Detected unhealthy UPS status %s, initiating command %s\n", status, config.Command)
+				cmdSlice := strings.Split(config.Command, " ")
 				cmd := exec.Command(cmdSlice[0], cmdSlice[1:]...)
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
@@ -103,7 +97,7 @@ func main() {
 			}
 
 			healthyCount++
-			if healthyCount >= healthyMessageIterations {
+			if healthyCount >= config.HealthyMessageIterations {
 				healthyCount = 0
 				log.Println("Detected healthy UPS status", status)
 			}
@@ -112,9 +106,9 @@ func main() {
 		select {
 		case <-sig:
 			log.Println("SIGHUP received")
-			healthyCount = healthyMessageIterations
+			healthyCount = config.HealthyMessageIterations
 			reopenLogFile()
-		case <-time.After(time.Second * time.Duration(sleep)):
+		case <-time.After(time.Second * time.Duration(config.Sleep)):
 
 		}
 	}
@@ -128,15 +122,15 @@ func reopenLogFile() {
 	log.Println("Closing log file...")
 	logFile.Close()
 
-	logFile, err := os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(config.LogFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		logFile = nil
 		log.SetOutput(os.Stdout)
-		log.Printf("Could not reopen log file %s: %v", logFilename, err)
+		log.Printf("Could not reopen log file %s: %v", config.LogFilename, err)
 		return
 	}
 	log.SetOutput(logFile)
-	log.Println("Successfully reopened log file", logFilename)
+	log.Println("Successfully reopened log file", config.LogFilename)
 }
 
 func extractUpsNameFromMonitorOption(server string) (string, string) {
