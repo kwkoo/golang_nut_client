@@ -18,15 +18,15 @@ import (
 var client nut.Client
 var connectClient = true
 var logFile *os.File
-var config = struct {
-	Server                   string `env:"MONITOR" flag:"monitor" usage:"should be in the format ups@system or just system (where system is the hostname or IP address of the NUT server) - if the UPS name is omitted the client will query for all UPS's and will use the first UPS returned, which is more inefficient" mandatory:"true"`
-	Command                  string `env:"SHUTDOWNCMD" flag:"shutdowncmd" default:"/sbin/poweroff" usage:"command to execute once the UPS is determined to be on battery power"`
-	Sleep                    int    `env:"POLLFREQ" flag:"pollfreq" default:"10" usage:"number of seconds between status checks - note that the NUT server will terminate connections after 60 seconds"`
-	HealthyMessageIterations int    `env:"HEALTHITERATIONS" flag:"healthiterations" default:"360" usage:"the rate at which healthy messages are logged - if this is set to 100 then a healthy message will be logged once every 100 iterations"`
-	LogFilename              string `env:"LOG" flag:"log" usage:"log filename - logs to stdout if omitted"`
-}{}
 
 func main() {
+	config := struct {
+		Server                   string `env:"MONITOR" flag:"monitor" usage:"should be in the format ups@system or just system (where system is the hostname or IP address of the NUT server) - if the UPS name is omitted the client will query for all UPS's and will use the first UPS returned, which is more inefficient" mandatory:"true"`
+		Command                  string `env:"SHUTDOWNCMD" flag:"shutdowncmd" default:"/sbin/poweroff" usage:"command to execute once the UPS is determined to be on battery power"`
+		Sleep                    int    `env:"POLLFREQ" flag:"pollfreq" default:"10" usage:"number of seconds between status checks - note that the NUT server will terminate connections after 60 seconds"`
+		HealthyMessageIterations int    `env:"HEALTHITERATIONS" flag:"healthiterations" default:"360" usage:"the rate at which healthy messages are logged - if this is set to 100 then a healthy message will be logged once every 100 iterations"`
+		LogFilename              string `env:"LOG" flag:"log" usage:"log filename - logs to stdout if omitted"`
+	}{}
 	if err := argparser.Parse(&config); err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
 		os.Exit(1)
@@ -107,14 +107,14 @@ func main() {
 		case <-sig:
 			log.Println("SIGHUP received")
 			healthyCount = config.HealthyMessageIterations
-			reopenLogFile()
+			reopenLogFile(config.LogFilename)
 		case <-time.After(time.Second * time.Duration(config.Sleep)):
 
 		}
 	}
 }
 
-func reopenLogFile() {
+func reopenLogFile(logFilename string) {
 	if logFile == nil {
 		return
 	}
@@ -122,15 +122,15 @@ func reopenLogFile() {
 	log.Println("Closing log file...")
 	logFile.Close()
 
-	logFile, err := os.OpenFile(config.LogFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		logFile = nil
 		log.SetOutput(os.Stdout)
-		log.Printf("Could not reopen log file %s: %v", config.LogFilename, err)
+		log.Printf("Could not reopen log file %s: %v", logFilename, err)
 		return
 	}
 	log.SetOutput(logFile)
-	log.Println("Successfully reopened log file", config.LogFilename)
+	log.Println("Successfully reopened log file", logFilename)
 }
 
 func extractUpsNameFromMonitorOption(server string) (string, string) {
