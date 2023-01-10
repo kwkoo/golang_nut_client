@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kwkoo/argparser"
+	"github.com/kwkoo/configparser"
 	nut "github.com/robbiet480/go.nut"
 )
 
@@ -27,7 +27,7 @@ func main() {
 		HealthyMessageIterations int    `env:"HEALTHITERATIONS" flag:"healthiterations" default:"360" usage:"the rate at which healthy messages are logged - if this is set to 100 then a healthy message will be logged once every 100 iterations"`
 		LogFilename              string `env:"LOG" flag:"log" usage:"log filename - logs to stdout if omitted"`
 	}{}
-	if err := argparser.Parse(&config); err != nil {
+	if err := configparser.Parse(&config); err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
 		os.Exit(1)
 	}
@@ -52,7 +52,7 @@ func main() {
 		log.SetOutput(logFile)
 	}
 
-	sig := make(chan os.Signal)
+	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGHUP)
 
 	log.Println("NUT server:", server)

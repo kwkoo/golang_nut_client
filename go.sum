@@ -1,0 +1,4 @@
+github.com/kwkoo/configparser v0.1.0 h1:v4/EcSOQnnF1Ej0ggZR8Vz2YbuVLWCJ2PiYltAMWrSc=
+github.com/kwkoo/configparser v0.1.0/go.mod h1:tW34gYPXCQDU+pLdts8L6KJH6FikGfd0dIAfviVYtnk=
+github.com/robbiet480/go.nut v0.0.0-20220219091450-bd8f121e1fa1 h1:YmFqprZILGlF/X3tvMA4Rwn3ySxyE3hGUajBHkkaZbM=
+github.com/robbiet480/go.nut v0.0.0-20220219091450-bd8f121e1fa1/go.mod h1:pL1huxuIlWub46MsMVJg4p7OXkzbPp/APxh9IH0eJjQ=
