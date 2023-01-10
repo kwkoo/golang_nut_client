@@ -28,24 +28,18 @@ func main() {
 		LogFilename              string `env:"LOG" flag:"log" usage:"log filename - logs to stdout if omitted"`
 	}{}
 	if err := configparser.Parse(&config); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error parsing configuration: %v\n", err)
 		os.Exit(1)
 	}
 
 	upsName, server := extractUpsNameFromMonitorOption(config.Server)
-
-	if len(server) == 0 {
-		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, "Mandatory parameter -monitor is missing.")
-		os.Exit(1)
-	}
 
 	if len(config.LogFilename) > 0 {
 		var err error
 		logFile, err = os.OpenFile(config.LogFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			flag.PrintDefaults()
-			fmt.Fprintf(os.Stderr, "Could not open log file %s: %v\n", config.LogFilename, err)
+			fmt.Fprintf(os.Stderr, "could not open log file %s: %v\n", config.LogFilename, err)
 			os.Exit(1)
 		}
 		defer logFile.Close()
@@ -59,17 +53,17 @@ func main() {
 
 	tmpName := upsName
 	if len(tmpName) == 0 {
-		tmpName = "None specified - will query for all UPS's"
+		tmpName = "UPS name not specified - will query for all UPS's"
 	}
 	log.Println("UPS name:", tmpName)
 
-	log.Println("Polling frequency:", config.Sleep, "seconds")
-	log.Println("Health iterations:", config.HealthyMessageIterations, "iterations")
-	log.Println("Shutdown command:", config.Command)
+	log.Println("polling frequency:", config.Sleep, "seconds")
+	log.Println("health iterations:", config.HealthyMessageIterations, "iterations")
+	log.Println("shutdown command:", config.Command)
 	if len(config.LogFilename) > 0 {
-		log.Println("Log file:", config.LogFilename)
+		log.Println("log file:", config.LogFilename)
 	} else {
-		log.Println("Logging to stdout")
+		log.Println("logging to stdout")
 	}
 
 	// log a healthy message the first time around
@@ -78,28 +72,28 @@ func main() {
 	for {
 		status, err := getUpsStatus(server, upsName)
 		if err != nil {
-			log.Println("Could not get UPS status:", err)
+			log.Println("could not get UPS status:", err)
 			healthyCount = config.HealthyMessageIterations
 		} else {
 			if strings.HasPrefix(status, "OB") {
 				disconnectClient()
-				log.Printf("Detected unhealthy UPS status %s, initiating command %s\n", status, config.Command)
+				log.Printf("detected unhealthy UPS status %s, initiating command %s\n", status, config.Command)
 				cmdSlice := strings.Split(config.Command, " ")
 				cmd := exec.Command(cmdSlice[0], cmdSlice[1:]...)
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
 				err := cmd.Run()
 				if err != nil {
-					log.Fatalln("Command finished with error:", err)
+					log.Fatalln("command finished with error:", err)
 				}
-				log.Println("Done executing command, exiting...")
+				log.Println("done executing command, exiting...")
 				os.Exit(0)
 			}
 
 			healthyCount++
 			if healthyCount >= config.HealthyMessageIterations {
 				healthyCount = 0
-				log.Println("Detected healthy UPS status", status)
+				log.Println("detected healthy UPS status", status)
 			}
 		}
 
@@ -119,18 +113,18 @@ func reopenLogFile(logFilename string) {
 		return
 	}
 
-	log.Println("Closing log file...")
+	log.Println("closing log file...")
 	logFile.Close()
 
 	logFile, err := os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		logFile = nil
 		log.SetOutput(os.Stdout)
-		log.Printf("Could not reopen log file %s: %v", logFilename, err)
+		log.Printf("could not reopen log file %s: %v", logFilename, err)
 		return
 	}
 	log.SetOutput(logFile)
-	log.Println("Successfully reopened log file", logFilename)
+	log.Println("successfully reopened log file", logFilename)
 }
 
 func extractUpsNameFromMonitorOption(server string) (string, string) {
@@ -191,7 +185,7 @@ func getUpsStatus(server, upsName string) (string, error) {
 			return "", err
 		}
 		disconnectClient()
-		log.Fatalln("Error retrieving UPS list:", err)
+		return "", fmt.Errorf("error retrieving UPS list: %v", err)
 	}
 
 	if len(upsList) < 1 {
@@ -204,7 +198,7 @@ func getUpsStatus(server, upsName string) (string, error) {
 	v, err := getVariableWithName(upsList[0], "ups.status")
 	if err != nil {
 		disconnectClient()
-		log.Fatalf("Error getting variable ups.status from UPS %s: %v\n", upsList[0].Name, err)
+		return "", fmt.Errorf("error getting variable ups.status from UPS %s: %v", upsList[0].Name, err)
 	}
 
 	value, ok := v.Value.(string)
@@ -240,7 +234,7 @@ func isEOF(err error) bool {
 }
 
 func disconnectClient() {
-	log.Println("Disconnecting from server")
+	log.Println("disconnecting from server")
 	client.Disconnect()
 	connectClient = true
 }
